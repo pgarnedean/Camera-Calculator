@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>レンズ計算機 (多機能版)</title>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
+            background-color: #f4f7f6;
+            color: #333;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        }
+        h2 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .form-group label {
+            width: 200px;
+            font-weight: bold;
+            font-size: 0.95em;
+        }
+        .form-group select, .form-group input[type="number"] {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 1em;
+        }
+        .form-group input[type="number"] {
+            width: 120px;
+            margin-right: 10px;
+        }
+        .unit {
+            font-size: 0.9em;
+            color: #666;
+        }
+        .radio-group label {
+            width: auto;
+            margin-right: 20px;
+            font-weight: normal;
+            cursor: pointer;
+        }
+        hr {
+            border: 0;
+            border-top: 1px solid #eee;
+            margin: 20px 0;
+        }
+        .result-box {
+            margin-top: 25px;
+            padding: 20px;
+            background-color: #e8f4f8;
+            border: 1px solid #bce0ee;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 1.3em;
+            color: #0b5394;
+        }
+        .result-box strong {
+            font-size: 1.5em;
+            color: #e74c3c;
+        }
+        /* 計算対象の入力欄を視覚的に無効化するスタイル */
+        .disabled-input {
+            background-color: #e9ecef;
+            color: #999;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>レンズ計算機</h2>
+    
+    <div class="form-group">
+        <label for="calc-mode">計算モード:</label>
+        <select id="calc-mode">
+            <option value="focal">焦点距離を計算</option>
+            <option value="distance">被写体までの距離を計算</option>
+            <option value="size">被写体のサイズを計算</option>
+        </select>
+    </div>
+
+    <hr>
+
+    <div class="form-group">
+        <label for="sensor-preset">イメージセンサー:</label>
+        <select id="sensor-preset">
+            <option value="36,24">フルサイズ (36 x 24mm)</option>
+            <option value="22.3,14.9" selected>APS-C (22.3 x 14.9mm)</option>
+            <option value="17.3,13">マイクロフォーサーズ (17.3 x 13mm)</option>
+            <option value="13.2,8.8">1インチ (13.2 x 8.8mm)</option>
+            <option value="custom">カスタム</option>
+        </select>
+    </div>
+    
+    <div class="form-group">
+        <label>センサー(水平):</label>
+        <input type="number" id="sensor-w" value="22.3" step="0.1"><span class="unit">mm</span>
+    </div>
+    <div class="form-group">
+        <label>センサー(垂直):</label>
+        <input type="number" id="sensor-h" value="14.9" step="0.1"><span class="unit">mm</span>
+    </div>
+
+    <hr>
+
+    <div class="form-group radio-group">
+        <label>被写体サイズの基準:</label>
+        <label><input type="radio" name="orientation" value="vertical" checked> 縦</label>
+        <label><input type="radio" name="orientation" value="horizontal"> 横</label>
+    </div>
+
+    <div class="form-group">
+        <label>被写体のサイズ:</label>
+        <input type="number" id="subject-size" value="2" step="0.1"><span class="unit">m</span>
+    </div>
+
+    <div class="form-group">
+        <label>被写体までの距離:</label>
+        <input type="number" id="distance" value="100" step="0.1"><span class="unit">m</span>
+    </div>
+
+    <div class="form-group">
+        <label>焦点距離:</label>
+        <input type="number" id="focal-length" value="745" step="1"><span class="unit">mm</span>
+    </div>
+
+    <div class="result-box" id="result-display">
+        結果がここに表示されます
+    </div>
+</div>
+
+<script>
+    // DOM要素の取得
+    const modeSelect = document.getElementById('calc-mode');
+    const sensorPreset = document.getElementById('sensor-preset');
+    const sensorW = document.getElementById('sensor-w');
+    const sensorH = document.getElementById('sensor-h');
+    const radios = document.getElementsByName('orientation');
+    const inputSize = document.getElementById('subject-size');
+    const inputDistance = document.getElementById('distance');
+    const inputFocal = document.getElementById('focal-length');
+    const resultDisplay = document.getElementById('result-display');
+
+    // すべての入力要素にイベントリスナーを追加（リアルタイム計算用）
+    const inputs = [modeSelect, sensorPreset, sensorW, sensorH, inputSize, inputDistance, inputFocal];
+    inputs.forEach(input => input.addEventListener('input', calculate));
+    radios.forEach(radio => radio.addEventListener('change', calculate));
+
+    // センサーのプリセット変更時の処理
+    sensorPreset.addEventListener('change', function() {
+        if(this.value !== 'custom') {
+            const [w, h] = this.value.split(',');
+            sensorW.value = w;
+            sensorH.value = h;
+            calculate();
+        }
+    });
+
+    // 計算のメインロジック
+    function calculate() {
+        const mode = modeSelect.value;
+        const w = parseFloat(sensorW.value);
+        const h = parseFloat(sensorH.value);
+        const size = parseFloat(inputSize.value);
+        const distance = parseFloat(inputDistance.value);
+        const focal = parseFloat(inputFocal.value);
+
+        // 縦横の判定（縦ならセンサーの垂直サイズ、横なら水平サイズを使用）
+        let isVertical = true;
+        for(let radio of radios) {
+            if(radio.checked && radio.value === 'horizontal') {
+                isVertical = false;
+            }
+        }
+        const sensorSize = isVertical ? h : w;
+
+        // 入力欄の有効化/無効化リセット
+        inputSize.classList.remove('disabled-input');
+        inputDistance.classList.remove('disabled-input');
+        inputFocal.classList.remove('disabled-input');
+
+        let resultHTML = "";
+
+        // モード別の計算とUI制御
+        if (mode === 'focal') {
+            inputFocal.classList.add('disabled-input'); // 求める値の入力欄をグレーアウト
+            if(size > 0 && distance > 0 && sensorSize > 0) {
+                const calculatedFocal = (distance * sensorSize) / size;
+                inputFocal.value = calculatedFocal.toFixed(1);
+                resultHTML = `必要な焦点距離<br><strong>${Math.round(calculatedFocal)}</strong> mm`;
+            }
+        } else if (mode === 'distance') {
+            inputDistance.classList.add('disabled-input');
+            if(size > 0 && focal > 0 && sensorSize > 0) {
+                const calculatedDistance = (focal * size) / sensorSize;
+                inputDistance.value = calculatedDistance.toFixed(1);
+                resultHTML = `被写体までの距離<br><strong>${calculatedDistance.toFixed(1)}</strong> m`;
+            }
+        } else if (mode === 'size') {
+            inputSize.classList.add('disabled-input');
+            if(focal > 0 && distance > 0 && sensorSize > 0) {
+                const calculatedSize = (distance * sensorSize) / focal;
+                inputSize.value = calculatedSize.toFixed(2);
+                resultHTML = `被写体のサイズ<br><strong>${calculatedSize.toFixed(2)}</strong> m`;
+            }
+        }
+
+        // 結果の描画
+        if(resultHTML) {
+            resultDisplay.innerHTML = resultHTML;
+        } else {
+            resultDisplay.innerHTML = "<span style='color:#666; font-size:0.8em;'>正しい数値を入力してください</span>";
+        }
+    }
+
+    // 初期読み込み時に1回計算を実行
+    calculate();
+</script>
+
+</body>
+</html>
